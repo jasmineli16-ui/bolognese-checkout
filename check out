@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bolognese Budget Challenge: Checkout</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1f2421;--mut:#5f6b64;--card:#fff;--bd:#d9ddd6;--ac:#c2410c;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161a17;--fg:#ecefe9;--mut:#a3aea6;--card:#1f2521;--bd:#36403a;--ac:#fb923c;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161a17;--fg:#ecefe9;--mut:#a3aea6;--card:#1f2521;--bd:#36403a;--ac:#fb923c;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:0 0 4px}h2{font-size:1.1rem;margin:0 0 8px}
+.sub{color:var(--mut);margin:0 0 12px}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:8px;padding:8px 12px;cursor:pointer}
+button.on,button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
+video{width:100%;max-height:260px;background:#000;border-radius:8px;display:none;margin-top:8px}
+.ing{margin-bottom:8px}.ing b{display:block;font-size:.9rem}
+.btns{display:flex;flex-wrap:wrap;gap:6px}.btns button{font-size:.85rem;padding:5px 8px}
+table{width:100%;border-collapse:collapse}td,th{padding:6px 4px;border-bottom:1px solid var(--bd);text-align:left;font-size:.92rem}
+td.r,th.r{text-align:right}
+.q button{padding:0 8px;margin:0 3px}
+.tot{font-size:1.6rem;font-weight:700}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+.fb{list-style:none;padding:0;margin:8px 0}.fb li{padding:3px 0}
+.labels{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.lab{background:#fff;color:#111;border:2px dashed #888;border-radius:8px;padding:8px;text-align:center;break-inside:avoid}
+.lab .st{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.lab .nm{font-weight:700}.lab .pk{font-size:.9rem}.lab .pr{font-size:1.4rem;font-weight:800;color:#c2410c}
+.lab svg{width:90px;height:90px}.lab .cd{font-size:.65rem;color:#555}
+.hide{display:none}
+@media (max-width:600px){.labels{grid-template-columns:repeat(2,1fr)}}
+@media print{.noprint,.tabs,h1,.sub{display:none!important}#checkout{display:none!important}#labels{display:block!important}body{background:#fff}.labels{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<main>
+<h1 class="noprint">🍝 Bolognese Budget Challenge</h1>
+<p class="sub noprint">Scan or tap each shelf label to build a basket, then check out. Budget: $20.00</p>
+<div class="tabs"><button id="t1" class="on">Checkout</button><button id="t2">Shelf labels (print)</button></div>
+
+<section id="checkout">
+<div class="grid">
+<div>
+<div class="box"><h2>Scan a label</h2>
+<button id="cam" class="pri">Start camera</button> <span id="camMsg" class="sub"></span>
+<video id="vid" playsinline muted></video><canvas id="cv" class="hide"></canvas>
+<h2 style="margin-top:12px">Or tap to add</h2><div id="tap"></div></div>
+</div>
+<div>
+<div class="box"><h2>Basket</h2><table id="bk"></table>
+<p id="empty" class="sub">Nothing scanned yet.</p>
+<div class="tot" id="tot">$0.00</div><div id="verdict"></div>
+<ul class="fb" id="fb"></ul>
+<button id="clr">Empty basket</button></div>
+<div class="box"><button id="rev">Teacher: reveal best possible</button><div id="revOut" class="hide" style="margin-top:8px"></div></div>
+</div>
+</div>
+</section>
+
+<section id="labels" class="hide">
+<p class="sub noprint">Print this page, then cut out the labels. Print one set per group.</p>
+<button class="pri noprint" onclick="window.print()" style="margin-bottom:10px">Print labels</button>
+<div class="labels" id="labGrid"></div>
+</section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+const NEED={'Spaghetti':500,'Beef mince':500,'Crushed tomatoes':800,'Brown onions':300,'Carrots':200,'Parmesan cheese':50};
+const ST={F:'FreshMart',B:'BargainBarn',P:'Penny’s Pantry'};
+const BUDGET=20;
+const D=[
+['SPA','Spaghetti',[['F','500 g',1.8,500],['B','1 kg',3.2,1000],['P','400 g',1.4,400]]],
+['MIN','Beef mince',[['F','500 g',7.5,500],['B','1 kg family pack',12.9,1000],['P','750 g',10.5,750]]],
+['TOM','Crushed tomatoes',[['F','400 g can',1.1,400],['B','800 g can',1.95,800],['P','3 × 400 g multipack',3,1200]]],
+['ONI','Brown onions',[['F','1 kg bag',2.8,1000],['B','3 kg bag',5.4,3000],['P','Loose, sold by the kg',null,300,4.5]]],
+['CAR','Carrots',[['F','1 kg bag',2.5,1000],['B','500 g bag',1.6,500],['P','2 kg bag',3.6,2000]]],
+['PAR','Parmesan cheese',[['F','250 g block',6.25,250],['B','100 g block',3.5,100],['P','500 g wheel',10,500]]]
+];
+const P=[];
+D.forEach(([k,ing,list])=>list.forEach(([s,pack,price,g,perKg])=>{
+  P.push({id:k+'-'+s,ing,st:ST[s],pack,g,perKg,price:perKg?perKg*g/1000:price});
+}));
+const byId=Object.fromEntries(P.map(p=>[p.id,p]));
+const $=id=>document.getElementById(id);
+const m=n=>'$'+n.toFixed(2);
+const label=p=>p.perKg?m(p.perKg)+' per kg':m(p.price);
+let basket={};
+
+// Tabs
+function tab(n){$('checkout').classList.toggle('hide',n!==1);$('labels').classList.toggle('hide',n!==2);$('t1').classList.toggle('on',n===1);$('t2').classList.toggle('on',n===2)}
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
+
+// Tap buttons
+$('tap').innerHTML=D.map(([k,ing,list])=>`<div class="ing"><b>${ing}</b><div class="btns">${list.map(([s,pack])=>`<button onclick="add('${k}-${s}')">${ST[s]}: ${pack}</button>`).join('')}</div></div>`).join('');
+
+// Labels
+$('labGrid').innerHTML=P.map(p=>{
+  let svg='';try{const q=qrcode(0,'M');q.addData(p.id);q.make();svg=q.createSvgTag({cellSize:4,margin:2})}catch(e){svg='<div>QR unavailable</div>'}
+  return `<div class="lab"><div class="st">${p.st}</div><div class="nm">${p.ing}</div><div class="pk">${p.pack}</div><div class="pr">${label(p)}</div>${svg}<div class="cd">${p.id}</div></div>`}).join('');
+
+// Basket
+function add(id){if(!byId[id])return;basket[id]=(basket[id]||0)+1;render()}
+function chg(id,d){basket[id]=(basket[id]||0)+d;if(basket[id]<=0)delete basket[id];render()}
+$('clr').onclick=()=>{basket={};render()};
+function render(){
+  const ids=Object.keys(basket);let total=0;const got={};
+  $('empty').classList.toggle('hide',ids.length>0);
+  $('bk').innerHTML=ids.length?'<tr><th>Item</th><th class="r">Price</th><th>Qty</th></tr>'+ids.map(id=>{const p=byId[id],q=basket[id];total+=p.price*q;got[p.ing]=(got[p.ing]||0)+p.g*q;
+    return `<tr><td>${p.ing}<br><small>${p.st}, ${p.pack}</small></td><td class="r">${m(p.price*q)}</td><td class="q"><button onclick="chg('${id}',-1)">−</button>${q}<button onclick="chg('${id}',1)">+</button></td></tr>`}).join(''):'';
+  $('tot').textContent=m(total);
+  let missing=0,fb='';
+  for(const ing in NEED){const have=got[ing]||0,need=NEED[ing];
+    if(!have){missing++;fb+=`<li class="bad">❌ ${ing}: not in basket (need ${need} g)</li>`}
+    else if(have<need){missing++;fb+=`<li class="bad">❌ ${ing}: only ${have} g, need ${need} g</li>`}
+    else if(have>need)fb+=`<li class="warn">⚠️ ${ing}: ${have-need} g left over (bought ${have} g, need ${need} g)</li>`;
+    else fb+=`<li class="ok">✅ ${ing}: just the right amount</li>`}
+  $('fb').innerHTML=ids.length?fb:'';
+  let v='';
+  if(ids.length){
+    if(missing)v='<b class="bad">Basket incomplete: you don’t have enough of every ingredient.</b>';
+    else if(total<=BUDGET)v=`<b class="ok">Within budget! ${m(BUDGET-total)} to spare.</b>`;
+    else v=`<b class="bad">Over budget by ${m(total-BUDGET)}.</b>`}
+  $('verdict').innerHTML=v;
+}
+render();
+
+// Teacher reveal
+$('rev').onclick=()=>{
+  let best=0,unit=0;
+  D.forEach(([k,ing,list])=>{
+    const need=NEED[ing],ps=P.filter(p=>p.ing===ing);
+    best+=Math.min(...ps.map(p=>p.perKg?need/1000*p.perKg:Math.ceil(need/p.g)*p.price));
+    const u=ps.filter(p=>!p.perKg).sort((a,b)=>a.price/a.g-b.price/b.g)[0];
+    unit+=Math.ceil(need/u.g)*u.price});
+  $('revOut').innerHTML=`Cheapest possible basket for the recipe: <b>${m(best)}</b><br>Basket if you always pick the lowest price per 100 g: <b>${m(unit)}</b>`;
+  $('revOut').classList.toggle('hide');
+};
+
+// Camera scanning
+let stream,raf,last='',lastT=0;
+$('cam').onclick=async()=>{
+  const v=$('vid');
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;cancelAnimationFrame(raf);v.style.display='none';$('cam').textContent='Start camera';return}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    v.srcObject=stream;await v.play();v.style.display='block';$('cam').textContent='Stop camera';$('camMsg').textContent='';loop();
+  }catch(e){$('camMsg').textContent='Camera not available here. Use the tap buttons instead.'}
+};
+function loop(){
+  const v=$('vid'),c=$('cv');
+  if(v.readyState===4&&window.jsQR){
+    c.width=v.videoWidth;c.height=v.videoHeight;const x=c.getContext('2d',{willReadFrequently:true});
+    x.drawImage(v,0,0);const img=x.getImageData(0,0,c.width,c.height);
+    const r=jsQR(img.data,img.width,img.height);
+    if(r&&byId[r.data]&&(r.data!==last||Date.now()-lastT>2500)){last=r.data;lastT=Date.now();add(r.data);$('camMsg').textContent='Added: '+byId[r.data].ing}
+  }
+  raf=requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
